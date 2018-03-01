@@ -1,10 +1,9 @@
 ﻿using System;
 using System.IO;
 
-using Newtonsoft.Json;
+using Amazon.Lambda.APIGatewayEvents;
 
 using CryptoNotifier;
-using CryptoNotifier.Entities;
 
 namespace CryptoNotifierTest
 {
@@ -13,11 +12,11 @@ namespace CryptoNotifierTest
         static void Main(string[] args)
         {
             Handlers handler = new Handlers();
+            
+            APIGatewayProxyRequest request = new APIGatewayProxyRequest();
+            request.Body = File.ReadAllText(Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + "\\APIConfig.txt");
 
-            string apiConfigStr = File.ReadAllText(Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + "\\APIConfig.txt");
-            Requests request = JsonConvert.DeserializeObject<Requests>(apiConfigStr);
-
-            Console.WriteLine(JsonConvert.SerializeObject(handler.GetBalance(request)));
+            Console.WriteLine(handler.GetBalance(request, null).Body);
             Console.ReadLine();
         }
     }
