@@ -84,7 +84,7 @@ namespace CryptoNotifier.Entities
                     {
                         Order lastBuyOrder = new Order()
                         {
-                            Currency = "TRY",
+                            Currency = currency,
                             Amount = lastBuyOrders.Sum(order => Convert.ToDecimal(order["amount"])),
                             Price = lastBuyOrders.Sum(order => Convert.ToDecimal(order["amount"]) * Convert.ToDecimal(order["price"])),
                             ExecutionTime = lastBuyOrders.Max(order => Convert.ToDateTime(order["date"]))

@@ -33,10 +33,10 @@ namespace CryptoNotifier
                 List<Cryptos> cryptos = new List<Cryptos>();
 
                 var btfnxBalanceList = bitfinex.GetBalance();
-                var btcTurklanceList = btcTurk.GetBalance();
+                var btcTurkBalanceList = btcTurk.GetBalance();
 
                 //var btfnxOrderHistory = bitfinex.GetLastBuyOrdersByCurrencies(btfnxBalanceList.Select(x => x.Currency).ToArray());
-                var btcTurkOrderHistory = btcTurk.GetLastBuyOrdersByCurrencies(btcTurklanceList.Select(x => x.Currency).ToArray());
+                var btcTurkOrderHistory = btcTurk.GetLastBuyOrdersByCurrencies(btcTurkBalanceList.Select(x => x.Currency).ToArray());
                 #endregion
 
                 foreach (var btfnxBalance in btfnxBalanceList)
@@ -52,7 +52,7 @@ namespace CryptoNotifier
                     crypto.CurrentUnitPrice = bitfinex.GetTickerByPair(crypto.Currency + "usd");
                     crypto.CurrentValue = crypto.CurrentUnitPrice * crypto.Amount;
 
-                    IEnumerable<Balance> ieBtcTurkBalance = btcTurklanceList.Where(x => x.Currency == crypto.Currency);
+                    IEnumerable<Balance> ieBtcTurkBalance = btcTurkBalanceList.Where(x => x.Currency == crypto.Currency);
                     if (ieBtcTurkBalance.Any())
                     {
                         Balance balance = ieBtcTurkBalance.ElementAt(0);
@@ -89,7 +89,7 @@ namespace CryptoNotifier
 
                 #region Non Bitfinex Cryptos
                 string[] btfnxBalanceCurrencies = btfnxBalanceList.Select(x => x.Currency).ToArray();
-                IEnumerable<Balance> ieBtcTurkOtherBalance = btcTurklanceList.Where(x => !btfnxBalanceCurrencies.Contains(x.Currency));
+                IEnumerable<Balance> ieBtcTurkOtherBalance = btcTurkBalanceList.Where(x => !btfnxBalanceCurrencies.Contains(x.Currency));
                 foreach (var balance in ieBtcTurkOtherBalance)
                 {
                     Cryptos crypto = new Cryptos()
