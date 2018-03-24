@@ -23,7 +23,7 @@ namespace CryptoNotifier
         BaseStockExchange local;
 
         List<Cryptos> cryptos;
-        Dictionary<string, BaseStockExchange>  platforms;
+        Dictionary<string, BaseStockExchange> platforms;
 
         public APIGatewayProxyResponse GetBalance(APIGatewayProxyRequest request, ILambdaContext context)
         {
@@ -34,33 +34,36 @@ namespace CryptoNotifier
             {
                 #region Prepare
                 globalConfig = configs.Where(x => x.Value.IsGlobalPlatform).ElementAt(0);
-                global = Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + globalConfig.Key), new object[] { globalConfig.Value }) as BaseStockExchange;
+                global = Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + globalConfig.Key)) as BaseStockExchange;
+                global.Config = globalConfig.Value;
 
                 localConfig = configs.Where(x => x.Value.IsLocalPlatform).ElementAt(0);
-                local = Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + localConfig.Key), new object[] { localConfig.Value }) as BaseStockExchange;
+                local = Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + localConfig.Key)) as BaseStockExchange;
+                local.Config = localConfig.Value;
 
                 cryptos = new List<Cryptos>();
 
                 platforms = new Dictionary<string, BaseStockExchange>();
                 foreach (var config in configs)
-                    platforms.Add(config.Key, Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + config.Key), new object[] { config.Value }) as BaseStockExchange);
+                {
+                    var platform = Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + config.Key)) as BaseStockExchange;
+                    platform.Config = config.Value;
+
+                    platforms.Add(config.Key, platform);
+                }
                 #endregion
 
                 // Main process
-                foreach (var processingConfig in platforms)
+                foreach (var platformConfig in platforms)
                 {
-                    var processingBalanceList = processingConfig.Value.GetBalance();
-                    foreach (var processingBalance in processingBalanceList)
+                    var platformBalanceList = platformConfig.Value.GetBalance();
+                    foreach (var platformBalance in platformBalanceList)
                     {
-                        AddOrUpdateCrypto(processingBalance, processingConfig);
-
-                        var otherPlatformConfigs = platforms.Where(x => x.Key != processingConfig.Key);
-                        foreach (var otherPlatformConfig in otherPlatformConfigs)
-                        {
-                            var otherPlatformBalanceList = otherPlatformConfig.Value.GetBalance();
-                            foreach (var otherPlatformBalance in otherPlatformBalanceList)
-                                AddOrUpdateCrypto(otherPlatformBalance, otherPlatformConfig);
-                        }
+                        var ieCurrentCrypto = cryptos.Where(x => x.Currency == platformBalance.Currency);
+                        if (ieCurrentCrypto.Any())
+                            UpdateCrypto(ieCurrentCrypto.ElementAt(0), platformConfig, platformBalance);
+                        else
+                            AddNewCrypto(platformConfig, platformBalance);
                     }
                 }
 
@@ -76,15 +79,20 @@ namespace CryptoNotifier
                 totalCrypto.CurrentValue = cryptos.Sum(x => x.CurrentValue * (!x.SourcePlatforms.Contains(localConfig.Key) ? totalCrypto.CurrentUnitPrice : 1)); // Lokal olmayanları lokale çevirerek topla
                 //totalCrypto.SpentValue = cryptos.Sum(x => x.SpentValue * (!x.Source.Contains("BTC Türk") ? totalCrypto.CurrentUnitPrice : 1));
 
-                cryptos.Select(x => x.Purchaseds.)
+                var purchaseds = new List<PurchasedCryptos>();
                 foreach (var crypto in cryptos)
+                    purchaseds.AddRange(crypto.Purchaseds);
+
+                var iePurchasedPlatforms = purchaseds.GroupBy(x => x.Platform);
+                foreach (var iePurchasedPlatform in iePurchasedPlatforms)
                 {
                     var totalCryptoPurchased = new PurchasedCryptos()
                     {
-
+                        Platform = iePurchasedPlatform.Key,
+                        CurrentValue = iePurchasedPlatform.Sum(x => x.CurrentValue),
+                        SpentValue = iePurchasedPlatform.Sum(x => x.SpentValue)
                     };
 
-                    totalCryptoPurchased.SpentValue = 0;
                     totalCryptoPurchased.ProfitValue = totalCryptoPurchased.SpentValue - totalCryptoPurchased.CurrentValue;
                     totalCryptoPurchased.ProfitPercentage = (totalCryptoPurchased.ProfitValue / totalCryptoPurchased.SpentValue) * 100;
                 }
@@ -123,15 +131,7 @@ namespace CryptoNotifier
 
             return response;
         }
-
-        private void AddOrUpdateCrypto(Balance platformBalance, KeyValuePair<string, BaseStockExchange> platformConfig)
-        {
-            var ieCurrentCrypto = cryptos.Where(x => x.Currency == platformBalance.Currency);
-            if (ieCurrentCrypto.Any())
-                UpdateCurrency(ieCurrentCrypto.ElementAt(0), platformConfig, platformBalance);
-            else
-                AddNewCrypto(platformConfig, platformBalance);
-        }
+        
         private void AddNewCrypto(KeyValuePair<string, BaseStockExchange> platformConfig, Balance platformBalance)
         {
             var platform = platformConfig.Value;
@@ -152,24 +152,23 @@ namespace CryptoNotifier
 
             cryptos.Add(crypto);
         }
-        private void UpdateCurrency(Cryptos currentCrypto, KeyValuePair<string, BaseStockExchange> platformConfig, Balance platformBalance)
+        private void UpdateCrypto(Cryptos currentCrypto, KeyValuePair<string, BaseStockExchange> platformConfig, Balance platformBalance)
         {
             var platform = platformConfig.Value;
 
             currentCrypto.SourcePlatforms += ", " + platformConfig.Key;
             currentCrypto.Amount += platformBalance.Amount;
 
-            string platformCurrency = platform.Config.PlatformCurrency;
             var currentPlatform = platforms[currentCrypto.TargetPlatform];
 
-            if ((platformCurrency != currentPlatform.Config.PlatformCurrency) && (platformCurrency == local.Config.PlatformCurrency || global.Config.PlatformCurrency == currentPlatform.Config.PlatformCurrency))
+            if ((platformConfig.Key != currentCrypto.TargetPlatform) && (platformConfig.Key == localConfig.Key || globalConfig.Key == currentCrypto.TargetPlatform))
             {
                 currentCrypto.CurrentValue *= platform.GetTickerByPair(mutualCurrency + platform.Config.PlatformCurrency) / currentPlatform.GetTickerByPair(mutualCurrency + currentPlatform.Config.PlatformCurrency);
                 currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency);
 
-                currentCrypto.TargetPlatform = platformCurrency;
+                currentCrypto.TargetPlatform = platformConfig.Key;
             }
-            else if (platformCurrency != currentPlatform.Config.PlatformCurrency)
+            else if (platformConfig.Key != currentCrypto.TargetPlatform)
                 currentCrypto.CurrentValue += platformBalance.Amount * currentPlatform.GetTickerByPair(mutualCurrency + currentPlatform.Config.PlatformCurrency) / platform.GetTickerByPair(mutualCurrency + platform.Config.PlatformCurrency);
             else
                 currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency);
@@ -189,6 +188,7 @@ namespace CryptoNotifier
 
                 PurchasedCryptos purchased = new PurchasedCryptos()
                 {
+                    Currency = crypto.Currency,
                     Platform = platformConfig.Key,
                     Amount = order.Amount,
                     CurrentUnitPrice = platform.GetTickerByPair(crypto.Currency + platform.Config.PlatformCurrency),

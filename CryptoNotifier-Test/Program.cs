@@ -14,7 +14,7 @@ namespace CryptoNotifierTest
             Handlers handler = new Handlers();
             
             APIGatewayProxyRequest request = new APIGatewayProxyRequest();
-            request.Body = File.ReadAllText(Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + "\\APIConfig.txt");
+            request.Body = File.ReadAllText(Environment.CurrentDirectory + "\\APIConfig.txt");
 
             Console.WriteLine(handler.GetBalance(request, null).Body);
             Console.ReadLine();

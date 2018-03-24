@@ -3,6 +3,7 @@ namespace CryptoNotifier.Entities
 {
     public class PurchasedCryptos
     {
+        public string Currency { get; set; }
         public string Platform { get; set; }
         public decimal Amount { get; set; }
         public decimal CurrentUnitPrice { get; set; }

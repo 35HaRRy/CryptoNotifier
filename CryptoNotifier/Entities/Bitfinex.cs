@@ -2,7 +2,6 @@
 using System.IO;
 using System.Net;
 using System.Text;
-using System.Linq;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
@@ -12,11 +11,6 @@ namespace CryptoNotifier.Entities
 {
     public class Bitfinex : BaseStockExchange//, IStockExchange
     {
-        Bitfinex(APIConfig config)
-        {
-            Config = config;
-        }
-
         private WebRequest GetAuthWebRequest(string path)
         {
             return GetAuthWebRequest(path, new Dictionary<string, object>());

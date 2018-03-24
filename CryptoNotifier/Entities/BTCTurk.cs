@@ -12,11 +12,6 @@ namespace CryptoNotifier.Entities
 {
     public class BTCTurk : BaseStockExchange//, IStockExchange
     {
-        BTCTurk(APIConfig config)
-        {
-            Config = config;
-        }
-
         private WebRequest GetAuthWebRequest(string path)
         {
             WebRequest request = WebRequest.Create(Config.BasePath + path);
@@ -82,7 +77,7 @@ namespace CryptoNotifier.Entities
                 foreach (string currency in currencies)
                 {
                     var lastBuyOrders = orderList
-                                                .Where(order => order["currency"].ToString() == currency)// && order["operation"].ToString() == "trade")
+                                                .Where(order => order["currency"].ToString() == currency && order["operation"].ToString() == "trade")
                                                 .TakeWhile(order => Convert.ToDecimal(order["amount"]) > 0);
 
                     if (lastBuyOrders.Count() > 0)
@@ -94,6 +89,7 @@ namespace CryptoNotifier.Entities
                             Price = lastBuyOrders.Sum(order => Convert.ToDecimal(order["amount"]) * Convert.ToDecimal(order["price"])),
                             ExecutionTime = lastBuyOrders.Max(order => Convert.ToDateTime(order["date"]))
                         };
+
                         lastBuyOrder.Price /= lastBuyOrder.Amount;
 
                         orders.Add(lastBuyOrder);
