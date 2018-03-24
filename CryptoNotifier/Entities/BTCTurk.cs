@@ -10,8 +10,13 @@ using Newtonsoft.Json;
 
 namespace CryptoNotifier.Entities
 {
-    public class BTCTurk : BaseStockExchange, IStockExchange
+    public class BTCTurk : BaseStockExchange//, IStockExchange
     {
+        BTCTurk(APIConfig config)
+        {
+            Config = config;
+        }
+
         private WebRequest GetAuthWebRequest(string path)
         {
             WebRequest request = WebRequest.Create(Config.BasePath + path);
@@ -30,7 +35,7 @@ namespace CryptoNotifier.Entities
             return request;
         }
 
-        public List<Balance> GetBalance()
+        public override List<Balance> GetBalance()
         {
             List<Balance> balances = new List<Balance>();
 
@@ -65,7 +70,7 @@ namespace CryptoNotifier.Entities
             return balances;
         }
 
-        public List<Order> GetLastBuyOrdersByCurrencies(string[] currencies)
+        public override List<Order> GetLastBuyOrdersByCurrencies(string[] currencies)
         {
             List<Order> orders = new List<Order>();
 
@@ -103,7 +108,7 @@ namespace CryptoNotifier.Entities
             return orders;
         }
 
-        public List<Ticker> GetTickers()
+        public override List<Ticker> GetTickers()
         {
             List<Ticker> tickers = new List<Ticker>();
 
@@ -128,12 +133,12 @@ namespace CryptoNotifier.Entities
             return tickers;
         }
 
-        public decimal GetTickerByPair(string pair)
+        public override decimal GetTickerByPair(string pair)
         {
             decimal price = 1;
             pair = pair.ToUpper();
 
-            if (pair != "TRYTRY")
+            if (pair.IsPairDifferent())
             {
                 var tickers = GetTickers().Where(ticker => ticker.Pair == pair);
                 if (tickers.Count() > 0)

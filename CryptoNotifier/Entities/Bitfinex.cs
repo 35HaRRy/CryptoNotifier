@@ -10,8 +10,13 @@ using Newtonsoft.Json;
 
 namespace CryptoNotifier.Entities
 {
-    public class Bitfinex : BaseStockExchange, IStockExchange
+    public class Bitfinex : BaseStockExchange//, IStockExchange
     {
+        Bitfinex(APIConfig config)
+        {
+            Config = config;
+        }
+
         private WebRequest GetAuthWebRequest(string path)
         {
             return GetAuthWebRequest(path, new Dictionary<string, object>());
@@ -43,7 +48,7 @@ namespace CryptoNotifier.Entities
             return request;
         }
 
-        public List<Balance> GetBalance()
+        public override List<Balance> GetBalance()
         {
             List<Balance> balances = new List<Balance>();
 
@@ -74,45 +79,45 @@ namespace CryptoNotifier.Entities
             return balances;
         }
 
-        public List<Order> GetLastBuyOrdersByCurrencies(string[] currencies)
+        public override List<Order> GetLastBuyOrdersByCurrencies(string[] currencies)
         {
             List<Order> orders = new List<Order>();
 
-            WebResponse response = GetAuthWebRequest("/v1/orders/hist").GetResponse();
-            using (StreamReader reader = new StreamReader(response.GetResponseStream()))
-            {
-                var orderList = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(reader.ReadToEnd());
+            //WebResponse response = GetAuthWebRequest("/v1/orders/hist").GetResponse();
+            //using (StreamReader reader = new StreamReader(response.GetResponseStream()))
+            //{
+            //    var orderList = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(reader.ReadToEnd());
 
-                //    foreach (string currency in currencies)
-                //    {
-                //        var lastBuyOrders = orderList
-                //                                    .Where(order => order["currency"].ToString() == currency)// && order["operation"].ToString() == "trade")
-                //                                    .TakeWhile(order => Convert.ToDecimal(order["amount"]) > 0);
+            //    //    foreach (string currency in currencies)
+            //    //    {
+            //    //        var lastBuyOrders = orderList
+            //    //                                    .Where(order => order["currency"].ToString() == currency)// && order["operation"].ToString() == "trade")
+            //    //                                    .TakeWhile(order => Convert.ToDecimal(order["amount"]) > 0);
 
-                //        if (lastBuyOrders.Count() > 0)
-                //        {
-                //            Order lastBuyOrder = new Order()
-                //            {
-                //                Currency = "TRY",
-                //                Amount = lastBuyOrders.Sum(order => Convert.ToDecimal(order["amount"])),
-                //                Price = lastBuyOrders.Sum(order => Convert.ToDecimal(order["amount"]) * Convert.ToDecimal(order["price"])),
-                //                ExecutionTime = lastBuyOrders.Max(order => Convert.ToDateTime(order["date"]))
-                //            };
-                //            lastBuyOrder.Price /= lastBuyOrder.Amount;
+            //    //        if (lastBuyOrders.Count() > 0)
+            //    //        {
+            //    //            Order lastBuyOrder = new Order()
+            //    //            {
+            //    //                Currency = "TRY",
+            //    //                Amount = lastBuyOrders.Sum(order => Convert.ToDecimal(order["amount"])),
+            //    //                Price = lastBuyOrders.Sum(order => Convert.ToDecimal(order["amount"]) * Convert.ToDecimal(order["price"])),
+            //    //                ExecutionTime = lastBuyOrders.Max(order => Convert.ToDateTime(order["date"]))
+            //    //            };
+            //    //            lastBuyOrder.Price /= lastBuyOrder.Amount;
 
-                //            orders.Add(lastBuyOrder);
-                //        }
-                //    }
+            //    //            orders.Add(lastBuyOrder);
+            //    //        }
+            //    //    }
 
-                reader.Close();
-            }
+            //    reader.Close();
+            //}
 
-            response.Close();
+            //response.Close();
 
             return orders;
         }
 
-        public List<Ticker> GetTickers()
+        public override List<Ticker> GetTickers()
         {
             List<Ticker> tickers = new List<Ticker>();
 
@@ -129,12 +134,12 @@ namespace CryptoNotifier.Entities
             return tickers;
         }
 
-        public decimal GetTickerByPair(string pair)
+        public override decimal GetTickerByPair(string pair)
         {
             decimal price = 1;
             pair = pair.ToLower();
 
-            if (pair != "usdusd")
+            if (pair.IsPairDifferent())
             {
                 WebResponse response = WebRequest.Create(Config.BasePath + "/v1/pubticker/" + pair).GetResponse();
                 using (StreamReader reader = new StreamReader(response.GetResponseStream()))

@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using System.Linq;
 using System.Collections.Generic;
 
@@ -14,118 +15,82 @@ namespace CryptoNotifier
 {
     public class Handlers
     {
+        public string mutualCurrency = "btc";
+        KeyValuePair<string, APIConfig> globalConfig;
+        BaseStockExchange global;
+
+        KeyValuePair<string, APIConfig> localConfig;
+        BaseStockExchange local;
+
+        List<Cryptos> cryptos;
+        Dictionary<string, BaseStockExchange>  platforms;
+
         public APIGatewayProxyResponse GetBalance(APIGatewayProxyRequest request, ILambdaContext context)
         {
-            var apiRequest = JsonConvert.DeserializeObject<Requests>(request.Body);
+            var configs = JsonConvert.DeserializeObject<Dictionary<string, APIConfig>>(request.Body);
             APIGatewayProxyResponse response;
 
             try
             {
                 #region Prepare
-                IStockExchange bitfinex = new Bitfinex() { Config = apiRequest.BTFNX };
-                IStockExchange btcTurk = new BTCTurk() { Config = apiRequest.BTCTurk };
+                globalConfig = configs.Where(x => x.Value.IsGlobalPlatform).ElementAt(0);
+                global = Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + globalConfig.Key), new object[] { globalConfig.Value }) as BaseStockExchange;
 
+                localConfig = configs.Where(x => x.Value.IsLocalPlatform).ElementAt(0);
+                local = Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + localConfig.Key), new object[] { localConfig.Value }) as BaseStockExchange;
+
+                cryptos = new List<Cryptos>();
+
+                platforms = new Dictionary<string, BaseStockExchange>();
+                foreach (var config in configs)
+                    platforms.Add(config.Key, Activator.CreateInstance(Type.GetType("CryptoNotifier.Entities." + config.Key), new object[] { config.Value }) as BaseStockExchange);
+                #endregion
+
+                // Main process
+                foreach (var processingConfig in platforms)
+                {
+                    var processingBalanceList = processingConfig.Value.GetBalance();
+                    foreach (var processingBalance in processingBalanceList)
+                    {
+                        AddOrUpdateCrypto(processingBalance, processingConfig);
+
+                        var otherPlatformConfigs = platforms.Where(x => x.Key != processingConfig.Key);
+                        foreach (var otherPlatformConfig in otherPlatformConfigs)
+                        {
+                            var otherPlatformBalanceList = otherPlatformConfig.Value.GetBalance();
+                            foreach (var otherPlatformBalance in otherPlatformBalanceList)
+                                AddOrUpdateCrypto(otherPlatformBalance, otherPlatformConfig);
+                        }
+                    }
+                }
+
+                #region Total
                 Cryptos totalCrypto = new Cryptos()
                 {
-                    Source = "Toplam",
-                    CurrentUnitPrice = btcTurk.GetTickerByPair("ETHTRY") / bitfinex.GetTickerByPair("ethusd")
+                    SourcePlatforms = "Toplam",
+                    TargetPlatform = local.Config.PlatformCurrency + " - " + global.Config.PlatformCurrency,
+                    CurrentUnitPrice = local.GetTickerByPair(mutualCurrency + local.Config.PlatformCurrency) / global.GetTickerByPair(mutualCurrency + global.Config.PlatformCurrency),
+                    Purchaseds = new List<PurchasedCryptos>()
                 };
-                List<Cryptos> cryptos = new List<Cryptos>();
 
-                var btfnxBalanceList = bitfinex.GetBalance();
-                var btcTurkBalanceList = btcTurk.GetBalance();
+                totalCrypto.CurrentValue = cryptos.Sum(x => x.CurrentValue * (!x.SourcePlatforms.Contains(localConfig.Key) ? totalCrypto.CurrentUnitPrice : 1)); // Lokal olmayanları lokale çevirerek topla
+                //totalCrypto.SpentValue = cryptos.Sum(x => x.SpentValue * (!x.Source.Contains("BTC Türk") ? totalCrypto.CurrentUnitPrice : 1));
 
-                //var btfnxOrderHistory = bitfinex.GetLastBuyOrdersByCurrencies(btfnxBalanceList.Select(x => x.Currency).ToArray());
-                var btcTurkOrderHistory = btcTurk.GetLastBuyOrdersByCurrencies(btcTurkBalanceList.Select(x => x.Currency).ToArray());
-                #endregion
-
-                foreach (var btfnxBalance in btfnxBalanceList)
+                cryptos.Select(x => x.Purchaseds.)
+                foreach (var crypto in cryptos)
                 {
-                    #region Balance
-                    Cryptos crypto = new Cryptos()
+                    var totalCryptoPurchased = new PurchasedCryptos()
                     {
-                        Source = "Bitfinex",
-                        Currency = btfnxBalance.Currency,
-                        Amount = btfnxBalance.Amount
+
                     };
 
-                    crypto.CurrentUnitPrice = bitfinex.GetTickerByPair(crypto.Currency + "usd");
-                    crypto.CurrentValue = crypto.CurrentUnitPrice * crypto.Amount;
-
-                    IEnumerable<Balance> ieBtcTurkBalance = btcTurkBalanceList.Where(x => x.Currency == crypto.Currency);
-                    if (ieBtcTurkBalance.Any())
-                    {
-                        Balance balance = ieBtcTurkBalance.ElementAt(0);
-
-                        crypto.Source += ", BTC Türk";
-                        crypto.Amount += balance.Amount;
-                        crypto.CurrentValue = crypto.CurrentValue * totalCrypto.CurrentUnitPrice + balance.Amount * btcTurk.GetTickerByPair(crypto.Currency + "TRY");
-                        crypto.CurrentUnitPrice = crypto.CurrentValue / crypto.Amount; // 2 yerde de varsa hesabı TRY' ye çevir yoksa USD kalsın.
-                    }
-                    #endregion
-
-                    //#region Order
-                    //IEnumerable<Order> ieBtfnxOrders = btfnxOrderHistory.Where(x => x.Currency == crypto.Currency);
-                    //if (ieBtfnxOrders.Any())
-                    //{
-                    //    Order order = ieBtfnxOrders.ElementAt(0);
-
-                    //    crypto.PurchasedUnitPrice = order.Price;
-                    //    crypto.SpentValue = order.Price * order.Amount;
-
-                    //    IEnumerable<Order> ieBtcTurkOrders = btcTurkOrderHistory.Where(x => x.Currency == crypto.Currency);
-                    //    if (ieBtcTurkOrders.Any())
-                    //    {
-                    //        order = ieBtfnxOrders.ElementAt(0);
-
-                    //        crypto.SpentValue += order.Price * order.Amount;
-                    //        crypto.PurchasedUnitPrice = crypto.SpentValue / crypto.Amount;
-                    //    }
-                    //}
-                    //#endregion
-
-                    cryptos.Add(crypto);
-                }
-
-                #region Non Bitfinex Cryptos
-                string[] btfnxBalanceCurrencies = btfnxBalanceList.Select(x => x.Currency).ToArray();
-                IEnumerable<Balance> ieBtcTurkOtherBalance = btcTurkBalanceList.Where(x => !btfnxBalanceCurrencies.Contains(x.Currency));
-                foreach (var balance in ieBtcTurkOtherBalance)
-                {
-                    Cryptos crypto = new Cryptos()
-                    {
-                        Source = "BTC Türk",
-                        Currency = balance.Currency,
-                        Amount = balance.Amount
-                    };
-                    crypto.CurrentUnitPrice = btcTurk.GetTickerByPair(crypto.Currency + "try");
-                    crypto.CurrentValue = crypto.CurrentUnitPrice * crypto.Amount;
-
-                    IEnumerable<Order> ieBtcTurkOrders = btcTurkOrderHistory.Where(x => x.Currency == crypto.Currency);
-                    if (ieBtcTurkOrders.Any())
-                    {
-                        Order order = ieBtcTurkOrders.ElementAt(0);
-
-                        crypto.SpentValue += order.Price * order.Amount;
-                        crypto.PurchasedUnitPrice = crypto.SpentValue / crypto.Amount;
-                    }
-
-                    cryptos.Add(crypto);
-                }
-                #endregion
-
-                // BTC Türk olmayanları TRY' ye çevirerek topla
-                totalCrypto.CurrentValue = cryptos.Sum(x => x.CurrentValue * (!x.Source.Contains("BTC Türk") ? totalCrypto.CurrentUnitPrice : 1));
-                totalCrypto.SpentValue = cryptos.Sum(x => x.SpentValue * (!x.Source.Contains("BTC Türk") ? totalCrypto.CurrentUnitPrice : 1));
-
-                if (totalCrypto.SpentValue > 4000)
-                {
-                    totalCrypto.SpentValue = 0;
-                    totalCrypto.ProfitValue = totalCrypto.SpentValue - totalCrypto.CurrentValue;
-                    totalCrypto.ProfitPercentage = (totalCrypto.ProfitValue / totalCrypto.SpentValue) * 100;
+                    totalCryptoPurchased.SpentValue = 0;
+                    totalCryptoPurchased.ProfitValue = totalCryptoPurchased.SpentValue - totalCryptoPurchased.CurrentValue;
+                    totalCryptoPurchased.ProfitPercentage = (totalCryptoPurchased.ProfitValue / totalCryptoPurchased.SpentValue) * 100;
                 }
 
                 cryptos.Add(totalCrypto);
+                #endregion
 
                 response = new APIGatewayProxyResponse
                 {
@@ -137,7 +102,7 @@ namespace CryptoNotifier
                     }
                 };
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 var body = new Dictionary<string, object>()
                 {
@@ -157,6 +122,86 @@ namespace CryptoNotifier
             }
 
             return response;
+        }
+
+        private void AddOrUpdateCrypto(Balance platformBalance, KeyValuePair<string, BaseStockExchange> platformConfig)
+        {
+            var ieCurrentCrypto = cryptos.Where(x => x.Currency == platformBalance.Currency);
+            if (ieCurrentCrypto.Any())
+                UpdateCurrency(ieCurrentCrypto.ElementAt(0), platformConfig, platformBalance);
+            else
+                AddNewCrypto(platformConfig, platformBalance);
+        }
+        private void AddNewCrypto(KeyValuePair<string, BaseStockExchange> platformConfig, Balance platformBalance)
+        {
+            var platform = platformConfig.Value;
+
+            Cryptos crypto = new Cryptos()
+            {
+                SourcePlatforms = platformConfig.Key,
+                Currency = platformBalance.Currency,
+                TargetPlatform = platformConfig.Key,
+                Amount = platformBalance.Amount,
+                Purchaseds = new List<PurchasedCryptos>()
+            };
+
+            crypto.CurrentUnitPrice = platform.GetTickerByPair(crypto.Currency + platform.Config.PlatformCurrency);
+            crypto.CurrentValue = crypto.CurrentUnitPrice * crypto.Amount;
+
+            AddPurchased(crypto, platformConfig, platformBalance);
+
+            cryptos.Add(crypto);
+        }
+        private void UpdateCurrency(Cryptos currentCrypto, KeyValuePair<string, BaseStockExchange> platformConfig, Balance platformBalance)
+        {
+            var platform = platformConfig.Value;
+
+            currentCrypto.SourcePlatforms += ", " + platformConfig.Key;
+            currentCrypto.Amount += platformBalance.Amount;
+
+            string platformCurrency = platform.Config.PlatformCurrency;
+            var currentPlatform = platforms[currentCrypto.TargetPlatform];
+
+            if ((platformCurrency != currentPlatform.Config.PlatformCurrency) && (platformCurrency == local.Config.PlatformCurrency || global.Config.PlatformCurrency == currentPlatform.Config.PlatformCurrency))
+            {
+                currentCrypto.CurrentValue *= platform.GetTickerByPair(mutualCurrency + platform.Config.PlatformCurrency) / currentPlatform.GetTickerByPair(mutualCurrency + currentPlatform.Config.PlatformCurrency);
+                currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency);
+
+                currentCrypto.TargetPlatform = platformCurrency;
+            }
+            else if (platformCurrency != currentPlatform.Config.PlatformCurrency)
+                currentCrypto.CurrentValue += platformBalance.Amount * currentPlatform.GetTickerByPair(mutualCurrency + currentPlatform.Config.PlatformCurrency) / platform.GetTickerByPair(mutualCurrency + platform.Config.PlatformCurrency);
+            else
+                currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency);
+
+            currentCrypto.CurrentUnitPrice = currentCrypto.CurrentValue / currentCrypto.Amount;
+
+            AddPurchased(currentCrypto, platformConfig, platformBalance);
+        }
+        private void AddPurchased(Cryptos crypto, KeyValuePair<string, BaseStockExchange> platformConfig, Balance platformBalance)
+        {
+            var platform = platformConfig.Value;
+
+            var platformOrderHistory = platform.GetLastBuyOrdersByCurrencies(new string[] { platformBalance.Currency });
+            if (platformOrderHistory.Any())
+            {
+                var order = platformOrderHistory.ElementAt(0);
+
+                PurchasedCryptos purchased = new PurchasedCryptos()
+                {
+                    Platform = platformConfig.Key,
+                    Amount = order.Amount,
+                    CurrentUnitPrice = platform.GetTickerByPair(crypto.Currency + platform.Config.PlatformCurrency),
+                    SpentValue = order.Price * order.Amount
+                };
+
+                purchased.CurrentValue = purchased.Amount * purchased.CurrentUnitPrice;
+                purchased.PurchasedUnitPrice = purchased.SpentValue / order.Amount;
+                purchased.ProfitValue = crypto.CurrentValue - purchased.SpentValue;
+                purchased.ProfitPercentage = purchased.ProfitValue / purchased.SpentValue;
+
+                crypto.Purchaseds.Add(purchased);
+            }
         }
     }
 }
