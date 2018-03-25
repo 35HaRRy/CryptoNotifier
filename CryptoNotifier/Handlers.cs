@@ -15,7 +15,7 @@ namespace CryptoNotifier
 {
     public class Handlers
     {
-        public string mutualCurrency = "btc";
+        public string mutualCurrency = "eth";
         KeyValuePair<string, APIConfig> globalConfig;
         BaseStockExchange global;
 
@@ -77,7 +77,6 @@ namespace CryptoNotifier
                 };
 
                 totalCrypto.CurrentValue = cryptos.Sum(x => x.CurrentValue * (!x.SourcePlatforms.Contains(localConfig.Key) ? totalCrypto.CurrentUnitPrice : 1)); // Lokal olmayanları lokale çevirerek topla
-                //totalCrypto.SpentValue = cryptos.Sum(x => x.SpentValue * (!x.Source.Contains("BTC Türk") ? totalCrypto.CurrentUnitPrice : 1));
 
                 var purchaseds = new List<PurchasedCryptos>();
                 foreach (var crypto in cryptos)
@@ -85,17 +84,9 @@ namespace CryptoNotifier
 
                 var iePurchasedPlatforms = purchaseds.GroupBy(x => x.Platform);
                 foreach (var iePurchasedPlatform in iePurchasedPlatforms)
-                {
-                    var totalCryptoPurchased = new PurchasedCryptos()
-                    {
-                        Platform = iePurchasedPlatform.Key,
-                        CurrentValue = iePurchasedPlatform.Sum(x => x.CurrentValue),
-                        SpentValue = iePurchasedPlatform.Sum(x => x.SpentValue)
-                    };
+                    totalCrypto.Purchaseds.Add(CreateTotalPurchased(iePurchasedPlatform.Key, iePurchasedPlatform.Sum(x => x.CurrentValue), iePurchasedPlatform.Sum(x => x.SpentValue)));
 
-                    totalCryptoPurchased.ProfitValue = totalCryptoPurchased.SpentValue - totalCryptoPurchased.CurrentValue;
-                    totalCryptoPurchased.ProfitPercentage = (totalCryptoPurchased.ProfitValue / totalCryptoPurchased.SpentValue) * 100;
-                }
+                totalCrypto.Purchaseds.Add(CreateTotalPurchased("Total", purchaseds.Sum(x => x.CurrentValue * (x.Platform != "BTCTurk" ? totalCrypto.CurrentUnitPrice : 1)), purchaseds.Sum(x => x.SpentValue * (x.Platform != "BTCTurk" ? totalCrypto.CurrentUnitPrice : 1))));
 
                 cryptos.Add(totalCrypto);
                 #endregion
@@ -131,7 +122,7 @@ namespace CryptoNotifier
 
             return response;
         }
-        
+
         private void AddNewCrypto(KeyValuePair<string, BaseStockExchange> platformConfig, Balance platformBalance)
         {
             var platform = platformConfig.Value;
@@ -169,7 +160,10 @@ namespace CryptoNotifier
                 currentCrypto.TargetPlatform = platformConfig.Key;
             }
             else if (platformConfig.Key != currentCrypto.TargetPlatform)
-                currentCrypto.CurrentValue += platformBalance.Amount * currentPlatform.GetTickerByPair(mutualCurrency + currentPlatform.Config.PlatformCurrency) / platform.GetTickerByPair(mutualCurrency + platform.Config.PlatformCurrency);
+            {
+                var exchangeRate = currentPlatform.GetTickerByPair(mutualCurrency + currentPlatform.Config.PlatformCurrency) / platform.GetTickerByPair(mutualCurrency + platform.Config.PlatformCurrency);
+                currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(platformBalance.Currency + platform.Config.PlatformCurrency) * exchangeRate;
+            }
             else
                 currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency);
 
@@ -195,13 +189,30 @@ namespace CryptoNotifier
                     SpentValue = order.Price * order.Amount
                 };
 
-                purchased.CurrentValue = purchased.Amount * purchased.CurrentUnitPrice;
-                purchased.PurchasedUnitPrice = purchased.SpentValue / order.Amount;
-                purchased.ProfitValue = crypto.CurrentValue - purchased.SpentValue;
-                purchased.ProfitPercentage = purchased.ProfitValue / purchased.SpentValue;
+                if (purchased.SpentValue != 0)
+                {
+                    purchased.CurrentValue = purchased.Amount * purchased.CurrentUnitPrice;
+                    purchased.PurchasedUnitPrice = purchased.SpentValue / order.Amount;
+                    purchased.ProfitValue = crypto.CurrentValue - purchased.SpentValue;
+                    purchased.ProfitPercentage = purchased.ProfitValue / purchased.SpentValue;
 
-                crypto.Purchaseds.Add(purchased);
+                    crypto.Purchaseds.Add(purchased); 
+                }
             }
+        }
+        private PurchasedCryptos CreateTotalPurchased(string platform, decimal currentValue, decimal spentValue)
+        {
+            var totalCryptoPurchased = new PurchasedCryptos()
+            {
+                Platform = platform,
+                CurrentValue = currentValue,
+                SpentValue = spentValue
+            };
+
+            totalCryptoPurchased.ProfitValue = totalCryptoPurchased.CurrentValue - totalCryptoPurchased.SpentValue;
+            totalCryptoPurchased.ProfitPercentage = (totalCryptoPurchased.ProfitValue / totalCryptoPurchased.SpentValue) * 100;
+
+            return totalCryptoPurchased;
         }
     }
 }

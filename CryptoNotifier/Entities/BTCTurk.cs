@@ -73,11 +73,11 @@ namespace CryptoNotifier.Entities
             using (StreamReader reader = new StreamReader(response.GetResponseStream()))
             {
                 var orderList = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(reader.ReadToEnd());
-
+                
                 foreach (string currency in currencies)
                 {
                     var lastBuyOrders = orderList
-                                                .Where(order => order["currency"].ToString() == currency && order["operation"].ToString() == "trade")
+                                                .Where(order => order["currency"].ToString() == currency)// && order["operation"].ToString() == "trade")
                                                 .TakeWhile(order => Convert.ToDecimal(order["amount"]) > 0);
 
                     if (lastBuyOrders.Count() > 0)

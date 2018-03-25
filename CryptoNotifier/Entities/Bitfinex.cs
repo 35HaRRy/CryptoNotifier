@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
@@ -11,6 +12,8 @@ namespace CryptoNotifier.Entities
 {
     public class Bitfinex : BaseStockExchange//, IStockExchange
     {
+        private NumberFormatInfo ni = new NumberFormatInfo() { NumberDecimalSeparator = "." };
+
         private WebRequest GetAuthWebRequest(string path)
         {
             return GetAuthWebRequest(path, new Dictionary<string, object>());
@@ -53,14 +56,14 @@ namespace CryptoNotifier.Entities
 
                 foreach (var balance in balanceList)
                 {
-                    decimal amount = Convert.ToDecimal(balance["amount"]);
+                    decimal amount = Convert.ToDecimal(balance["amount"], ni);
                     if (amount > 0)
                     {
                         balances.Add(new Balance()
                         {
                             Currency = balance["currency"].ToString().ToUpper(),
                             Amount = amount,
-                            Avaliable = Convert.ToDecimal(balance["available"])
+                            Avaliable = Convert.ToDecimal(balance["available"], ni)
                         }); 
                     }
                 }
@@ -139,7 +142,7 @@ namespace CryptoNotifier.Entities
                 using (StreamReader reader = new StreamReader(response.GetResponseStream()))
                 {
                     var ticker = JsonConvert.DeserializeObject<Dictionary<string, object>>(reader.ReadToEnd());
-                    price = Convert.ToDecimal(ticker["last_price"]);
+                    price = Convert.ToDecimal(ticker["last_price"], ni);
 
                     reader.Close();
                 }
