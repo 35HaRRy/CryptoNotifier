@@ -23,9 +23,19 @@ namespace CryptoNotifier.Entities
             WebRequest request = WebRequest.Create(Config.BasePath + path);
             request.Method = "POST";
 
+            TimeZoneInfo timeZone = null;
+            try
+            {
+                timeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
+            }
+            catch
+            {
+                timeZone = TimeZoneInfo.FindSystemTimeZoneById("Turkey Standard Time");
+            }
+
             payload.Add("request", path);
-            payload.Add("nonce", DateTime.Now.Ticks.ToString());
-            
+            payload.Add("nonce", TimeZoneInfo.ConvertTime(DateTime.UtcNow, timeZone).Ticks.ToString());
+
             byte[] payloadBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(payload));
             string payloadBase64 = Convert.ToBase64String(payloadBytes);
 
@@ -35,7 +45,7 @@ namespace CryptoNotifier.Entities
 
                 request.Headers.Add("X-BFX-APIKEY", Config.ApiKey);
                 request.Headers.Add("X-BFX-PAYLOAD", payloadBase64);
-                request.Headers.Add("X-BFX-SIGNATURE", BitConverter.ToString(signatureBytes).Replace("-", "").ToLower());
+                request.Headers.Add("X-BFX-SIGNATURE", BitConverter.ToString(signatureBytes).Replace("-", "").ToLower(new CultureInfo("en-US")));
             }
 
             request.ContentLength = payloadBytes.Length;
@@ -64,7 +74,7 @@ namespace CryptoNotifier.Entities
                             Currency = balance["currency"].ToString().ToUpper(),
                             Amount = amount,
                             Avaliable = Convert.ToDecimal(balance["available"], ni)
-                        }); 
+                        });
                     }
                 }
 
@@ -147,7 +157,7 @@ namespace CryptoNotifier.Entities
                     reader.Close();
                 }
 
-                response.Close(); 
+                response.Close();
             }
 
             return price;

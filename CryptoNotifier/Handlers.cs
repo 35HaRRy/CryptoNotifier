@@ -52,8 +52,7 @@ namespace CryptoNotifier
                     platforms.Add(config.Key, platform);
                 }
                 #endregion
-
-                // Main process
+                
                 foreach (var platformConfig in platforms)
                 {
                     var platformBalanceList = platformConfig.Value.GetBalance();
@@ -105,7 +104,6 @@ namespace CryptoNotifier
             {
                 var body = new Dictionary<string, object>()
                 {
-                    { "Config", request.Body },
                     { "Message", ex.ToString() }
                 };
 
