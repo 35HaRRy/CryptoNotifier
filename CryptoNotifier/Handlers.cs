@@ -71,11 +71,11 @@ namespace CryptoNotifier
                 {
                     SourcePlatforms = "Toplam",
                     TargetPlatform = local.Config.PlatformCurrency + " - " + global.Config.PlatformCurrency,
-                    CurrentUnitPrice = local.GetTickerByPair(mutualCurrency + local.Config.PlatformCurrency) / global.GetTickerByPair(mutualCurrency + global.Config.PlatformCurrency),
+                    CurrentUnitPrice = Math.Round(local.GetTickerByPair(mutualCurrency + local.Config.PlatformCurrency) / global.GetTickerByPair(mutualCurrency + global.Config.PlatformCurrency), 6),
                     Purchaseds = new List<PurchasedCryptos>()
                 };
 
-                totalCrypto.CurrentValue = cryptos.Sum(x => x.CurrentValue * (!x.SourcePlatforms.Contains(localConfig.Key) ? totalCrypto.CurrentUnitPrice : 1)); // Lokal olmayanları lokale çevirerek topla
+                totalCrypto.CurrentValue = Math.Round(cryptos.Sum(x => x.CurrentValue * (!x.SourcePlatforms.Contains(localConfig.Key) ? totalCrypto.CurrentUnitPrice : 1)), 6); // Lokal olmayanları lokale çevirerek topla
 
                 var purchaseds = new List<PurchasedCryptos>();
                 foreach (var crypto in cryptos)
@@ -134,8 +134,8 @@ namespace CryptoNotifier
                 Purchaseds = new List<PurchasedCryptos>()
             };
 
-            crypto.CurrentUnitPrice = platform.GetTickerByPair(crypto.Currency + platform.Config.PlatformCurrency);
-            crypto.CurrentValue = crypto.CurrentUnitPrice * crypto.Amount;
+            crypto.CurrentUnitPrice = Math.Round(platform.GetTickerByPair(crypto.Currency + platform.Config.PlatformCurrency), 6);
+            crypto.CurrentValue = Math.Round(crypto.CurrentUnitPrice * crypto.Amount, 6);
 
             AddPurchased(crypto, platformConfig, platformBalance);
 
@@ -153,19 +153,19 @@ namespace CryptoNotifier
             if ((platformConfig.Key != currentCrypto.TargetPlatform) && (platformConfig.Key == localConfig.Key || globalConfig.Key == currentCrypto.TargetPlatform))
             {
                 currentCrypto.CurrentValue *= platform.GetTickerByPair(mutualCurrency + platform.Config.PlatformCurrency) / currentPlatform.GetTickerByPair(mutualCurrency + currentPlatform.Config.PlatformCurrency);
-                currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency);
+                currentCrypto.CurrentValue = Math.Round(currentCrypto.CurrentValue + platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency), 6);
 
                 currentCrypto.TargetPlatform = platformConfig.Key;
             }
             else if (platformConfig.Key != currentCrypto.TargetPlatform)
             {
                 var exchangeRate = currentPlatform.GetTickerByPair(mutualCurrency + currentPlatform.Config.PlatformCurrency) / platform.GetTickerByPair(mutualCurrency + platform.Config.PlatformCurrency);
-                currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(platformBalance.Currency + platform.Config.PlatformCurrency) * exchangeRate;
+                currentCrypto.CurrentValue = Math.Round(currentCrypto.CurrentValue + platformBalance.Amount * platform.GetTickerByPair(platformBalance.Currency + platform.Config.PlatformCurrency) * exchangeRate, 6);
             }
             else
-                currentCrypto.CurrentValue += platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency);
+                currentCrypto.CurrentValue = Math.Round(currentCrypto.CurrentValue + platformBalance.Amount * platform.GetTickerByPair(currentCrypto.Currency + platform.Config.PlatformCurrency), 6);
 
-            currentCrypto.CurrentUnitPrice = currentCrypto.CurrentValue / currentCrypto.Amount;
+            currentCrypto.CurrentUnitPrice = Math.Round(currentCrypto.CurrentValue / currentCrypto.Amount, 6);
 
             AddPurchased(currentCrypto, platformConfig, platformBalance);
         }
@@ -183,16 +183,16 @@ namespace CryptoNotifier
                     Currency = crypto.Currency,
                     Platform = platformConfig.Key,
                     Amount = order.Amount,
-                    CurrentUnitPrice = platform.GetTickerByPair(crypto.Currency + platform.Config.PlatformCurrency),
-                    SpentValue = order.Price * order.Amount
+                    CurrentUnitPrice = Math.Round(platform.GetTickerByPair(crypto.Currency + platform.Config.PlatformCurrency), 6),
+                    SpentValue = Math.Round(order.Price * order.Amount, 6)
                 };
 
                 if (purchased.SpentValue != 0)
                 {
                     purchased.CurrentValue = purchased.Amount * purchased.CurrentUnitPrice;
-                    purchased.PurchasedUnitPrice = purchased.SpentValue / order.Amount;
-                    purchased.ProfitValue = crypto.CurrentValue - purchased.SpentValue;
-                    purchased.ProfitPercentage = purchased.ProfitValue / purchased.SpentValue;
+                    purchased.PurchasedUnitPrice = Math.Round(purchased.SpentValue / order.Amount, 6);
+                    purchased.ProfitValue = Math.Round(crypto.CurrentValue - purchased.SpentValue, 6);
+                    purchased.ProfitPercentage = Math.Round(purchased.ProfitValue / purchased.SpentValue, 6);
 
                     crypto.Purchaseds.Add(purchased); 
                 }
@@ -203,12 +203,12 @@ namespace CryptoNotifier
             var totalCryptoPurchased = new PurchasedCryptos()
             {
                 Platform = platform,
-                CurrentValue = currentValue,
-                SpentValue = spentValue
+                CurrentValue = Math.Round(currentValue, 6),
+                SpentValue = Math.Round(spentValue, 6)
             };
 
-            totalCryptoPurchased.ProfitValue = totalCryptoPurchased.CurrentValue - totalCryptoPurchased.SpentValue;
-            totalCryptoPurchased.ProfitPercentage = (totalCryptoPurchased.ProfitValue / totalCryptoPurchased.SpentValue) * 100;
+            totalCryptoPurchased.ProfitValue = Math.Round(totalCryptoPurchased.CurrentValue - totalCryptoPurchased.SpentValue, 6);
+            totalCryptoPurchased.ProfitPercentage = Math.Round((totalCryptoPurchased.ProfitValue / totalCryptoPurchased.SpentValue) * 100, 6);
 
             return totalCryptoPurchased;
         }
