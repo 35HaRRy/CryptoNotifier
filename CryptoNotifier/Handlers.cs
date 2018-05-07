@@ -208,7 +208,9 @@ namespace CryptoNotifier
             };
 
             totalCryptoPurchased.ProfitValue = Math.Round(totalCryptoPurchased.CurrentValue - totalCryptoPurchased.SpentValue, 6);
-            totalCryptoPurchased.ProfitPercentage = Math.Round((totalCryptoPurchased.ProfitValue / totalCryptoPurchased.SpentValue) * 100, 6);
+
+            if (totalCryptoPurchased.SpentValue > 0)
+                totalCryptoPurchased.ProfitPercentage = Math.Round((totalCryptoPurchased.ProfitValue / totalCryptoPurchased.SpentValue) * 100, 6);
 
             return totalCryptoPurchased;
         }

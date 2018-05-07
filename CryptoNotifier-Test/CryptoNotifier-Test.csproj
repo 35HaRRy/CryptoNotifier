@@ -9,4 +9,10 @@
     <ProjectReference Include="..\CryptoNotifier\CryptoNotifier.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="APIConfig.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
